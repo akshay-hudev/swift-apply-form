@@ -1,4 +1,4 @@
-import { useState, useRef, FormEvent } from "react";
+import { useState, useRef, useEffect, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,28 @@ const RegistrationForm = () => {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Load editing data if exists
+  useEffect(() => {
+    const editingData = localStorage.getItem("editingSubmission");
+    if (editingData) {
+      const data = JSON.parse(editingData);
+      setFormData({
+        fullName: data.fullName,
+        email: data.email,
+        phone: data.phone,
+        gender: data.gender,
+        course: data.course,
+        address: data.address,
+      });
+      setIsEditing(true);
+      setEditingId(data.id);
+      localStorage.removeItem("editingSubmission");
+    }
+  }, []);
 
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -97,14 +118,27 @@ const RegistrationForm = () => {
 
     // Save to localStorage
     const existingData = JSON.parse(localStorage.getItem("registrations") || "[]");
-    const newEntry = {
-      ...formData,
-      id: Date.now(),
-      submittedAt: new Date().toISOString(),
-    };
-    existingData.push(newEntry);
-    localStorage.setItem("registrations", JSON.stringify(existingData));
-    localStorage.setItem("lastSubmission", JSON.stringify(newEntry));
+    
+    if (isEditing && editingId) {
+      // Update existing entry
+      const updatedData = existingData.map((entry: any) =>
+        entry.id === editingId
+          ? { ...entry, ...formData, submittedAt: new Date().toISOString() }
+          : entry
+      );
+      localStorage.setItem("registrations", JSON.stringify(updatedData));
+      localStorage.setItem("lastSubmission", JSON.stringify({ ...formData, id: editingId, submittedAt: new Date().toISOString() }));
+    } else {
+      // Create new entry
+      const newEntry = {
+        ...formData,
+        id: Date.now(),
+        submittedAt: new Date().toISOString(),
+      };
+      existingData.push(newEntry);
+      localStorage.setItem("registrations", JSON.stringify(existingData));
+      localStorage.setItem("lastSubmission", JSON.stringify(newEntry));
+    }
 
     // Navigate to success page
     navigate("/success");
@@ -112,7 +146,7 @@ const RegistrationForm = () => {
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Remove error when user starts typing
+    // Remove error when user starts typing - force re-render to retrigger animation
     if (errors[field]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -122,13 +156,34 @@ const RegistrationForm = () => {
     }
   };
 
+  // Force animation retrigger by temporarily removing classes
+  const getFieldClassName = (field: keyof FormData, baseClass: string) => {
+    if (errors[field]) {
+      // Use key or force reflow to retrigger animation
+      setTimeout(() => {
+        const element = document.getElementById(field);
+        if (element) {
+          element.classList.remove('shake');
+          void element.offsetWidth; // Force reflow
+          element.classList.add('shake');
+        }
+      }, 0);
+      return `${baseClass} invalid shake`;
+    }
+    return baseClass;
+  };
+
   return (
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-2xl mx-auto">
         {/* Top Bar */}
         <div className="bg-primary text-primary-foreground py-4 px-6 rounded-t-lg mb-0">
-          <h1 className="text-2xl font-bold">Online Application Form</h1>
-          <p className="text-sm opacity-90">Fill out the form below to register</p>
+          <h1 className="text-2xl font-bold">
+            {isEditing ? "Edit Application" : "Online Application Form"}
+          </h1>
+          <p className="text-sm opacity-90">
+            {isEditing ? "Update your registration details" : "Fill out the form below to register"}
+          </p>
         </div>
 
         {/* Form Card */}
@@ -145,7 +200,7 @@ const RegistrationForm = () => {
                   type="text"
                   value={formData.fullName}
                   onChange={(e) => handleInputChange("fullName", e.target.value)}
-                  className={`mt-2 ${errors.fullName ? "invalid shake" : ""}`}
+                  className={getFieldClassName("fullName", "mt-2")}
                   placeholder="Enter your full name"
                 />
               </div>
@@ -160,7 +215,7 @@ const RegistrationForm = () => {
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
-                  className={`mt-2 ${errors.email ? "invalid shake" : ""}`}
+                  className={getFieldClassName("email", "mt-2")}
                   placeholder="example@email.com"
                 />
               </div>
@@ -175,7 +230,7 @@ const RegistrationForm = () => {
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
-                  className={`mt-2 ${errors.phone ? "invalid shake" : ""}`}
+                  className={getFieldClassName("phone", "mt-2")}
                   placeholder="1234567890"
                 />
               </div>
@@ -191,7 +246,7 @@ const RegistrationForm = () => {
                 >
                   <SelectTrigger
                     id="gender"
-                    className={`mt-2 ${errors.gender ? "invalid shake" : ""}`}
+                    className={getFieldClassName("gender", "mt-2")}
                   >
                     <SelectValue placeholder="Select your gender" />
                   </SelectTrigger>
@@ -214,7 +269,7 @@ const RegistrationForm = () => {
                 >
                   <SelectTrigger
                     id="course"
-                    className={`mt-2 ${errors.course ? "invalid shake" : ""}`}
+                    className={getFieldClassName("course", "mt-2")}
                   >
                     <SelectValue placeholder="Select a course" />
                   </SelectTrigger>
@@ -237,7 +292,7 @@ const RegistrationForm = () => {
                   id="address"
                   value={formData.address}
                   onChange={(e) => handleInputChange("address", e.target.value)}
-                  className={`mt-2 min-h-[100px] ${errors.address ? "invalid shake" : ""}`}
+                  className={getFieldClassName("address", "mt-2 min-h-[100px]")}
                   placeholder="Enter your complete address"
                 />
               </div>
@@ -245,7 +300,7 @@ const RegistrationForm = () => {
               {/* Submit Button */}
               <div className="flex gap-4 pt-4">
                 <Button type="submit" className="flex-1 text-lg py-6">
-                  Submit Application
+                  {isEditing ? "Update Application" : "Submit Application"}
                 </Button>
                 <Button
                   type="button"
