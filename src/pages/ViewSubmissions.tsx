@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search } from "lucide-react";
+import { Search, Pencil, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Registration {
   id: number;
@@ -19,6 +20,7 @@ interface Registration {
 
 const ViewSubmissions = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [filteredRegistrations, setFilteredRegistrations] = useState<Registration[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -51,6 +53,33 @@ const ViewSubmissions = () => {
   const formatDate = (isoString: string) => {
     const date = new Date(isoString);
     return date.toLocaleString();
+  };
+
+  const handleDelete = (id: number) => {
+    const updated = registrations.filter((reg) => reg.id !== id);
+    localStorage.setItem("registrations", JSON.stringify(updated));
+    setRegistrations(updated);
+    setFilteredRegistrations(updated.filter((reg) => {
+      if (searchTerm.trim() === "") return true;
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        reg.fullName.toLowerCase().includes(searchLower) ||
+        reg.email.toLowerCase().includes(searchLower) ||
+        reg.phone.includes(searchTerm) ||
+        reg.gender.toLowerCase().includes(searchLower) ||
+        reg.course.toLowerCase().includes(searchLower) ||
+        reg.address.toLowerCase().includes(searchLower)
+      );
+    }));
+    toast({
+      title: "Submission deleted",
+      description: "The registration has been removed successfully.",
+    });
+  };
+
+  const handleEdit = (reg: Registration) => {
+    localStorage.setItem("editingSubmission", JSON.stringify(reg));
+    navigate("/");
   };
 
   return (
@@ -108,6 +137,7 @@ const ViewSubmissions = () => {
                     <TableHead className="font-bold">Course</TableHead>
                     <TableHead className="font-bold">Address</TableHead>
                     <TableHead className="font-bold">Submitted At</TableHead>
+                    <TableHead className="font-bold text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -122,6 +152,26 @@ const ViewSubmissions = () => {
                       <TableCell className="max-w-xs truncate">{reg.address}</TableCell>
                       <TableCell className="whitespace-nowrap">
                         {formatDate(reg.submittedAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleEdit(reg)}
+                            title="Edit submission"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleDelete(reg.id)}
+                            title="Delete submission"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
